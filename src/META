@@ -1,0 +1,10 @@
+# OASIS_START
+# DO NOT EDIT (digest: 1d995ecfb32d1ef078a323818434e42d)
+version = "1"
+description = "Binding for aws simple email service"
+requires = "ocsigenserver calendar threads lwt lwt.syntax xmlm"
+archive(byte) = "aws_ses.cma"
+archive(native) = "aws_ses.cmxa"
+exists_if = "aws_ses.cma"
+# OASIS_STOP
+
