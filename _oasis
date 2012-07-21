@@ -1,14 +1,15 @@
-OASISFormat: 0.2
-Name:        aws.ses
-Version:     1
-Synopsis:    Binding for aws simple email service
-Authors:     Marc Simon (marc.simon42@gmail.com)
-License:     LGPL-3.0
-Plugins:     META (0.2)
+OASISFormat: 0.3
+Name:        Aws
+Version:     0.2
+Synopsis:    Binding for aws ses
+Authors:     Marc Simon
+License:     GPL-3.0
+Plugins:     META (0.3)
 
-Library "aws_ses"
+Library awsLib
   Path:       src
   BuildTools: ocamlbuild
-  Modules: Ses, Ses_request, Ses_types, Ses_xml
+  Pack:       true
+  Modules: Types, Http_request, Xml, Ses
   BuildDepends: ocsigenserver, calendar, threads, lwt, lwt.syntax, xmlm
-
+  

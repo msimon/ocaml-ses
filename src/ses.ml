@@ -1,6 +1,5 @@
-module Http_request = Ses_request
-open Ses_types
-open Ses_xml
+open Types
+open Xml
 
 let endpoint = "https://email.us-east-1.amazonaws.com/"
 
@@ -28,8 +27,8 @@ let make_request ~creds post_params =
     ("Timestamp", ses_timestamp ())
   ] @ post_params in
   lwt s = Http_request.post_string_url ~headers ~content:post_params endpoint () in
-  let xml = Ses_xml.of_string s in
-  Ses_xml.check_error xml ;
+  let xml = Xml.of_string s in
+  Xml.check_error xml ;
   Lwt.return xml
 
 (****************  SES METHODE ****************)
@@ -165,12 +164,21 @@ let send_raw_email ~creds ?destinations ?source ~raw_message () =
   lwt xml = make_request ~creds params in
   Lwt.return (data_of_string "SendEmailResponse.SendEmailResult.MessageId" [xml])
 
+
+(* The VerifyEmailAddress action is deprecated as of the May 15, 2012 release of Domain Verification. The VerifyEmailIdentity action is now preferred *)
 let verify_email_address ~creds email =
-  lwt _ = make_request ~creds [
+  lwt xml = make_request ~creds [
     ("Action", "VerifyEmailAddress");
     ("EmailAddress", email);
   ] in
-  Lwt.return ()
+  Lwt.return (data_of_string "VerifyEmailAddressResponse.ResponseMetadata.RequestId" [xml])
+
+let verify_email_address ~creds email =
+  lwt xml = make_request ~creds [
+    ("Action", "VerifyEmailIdentity");
+    ("EmailAddress", email);
+  ] in
+  Lwt.return (data_of_string "VerifyEmailIdentityResponse.ResponseMetadata.RequestId" [xml])
 
 (************** custom function **************)
 
