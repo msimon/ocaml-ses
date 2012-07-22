@@ -31,7 +31,38 @@ let make_request ~creds post_params =
   Xml.check_error xml ;
   Lwt.return xml
 
+(****************** UTILS *********************)
+
+let build_member dest dest_type acc =
+  let l,_ =
+    List.fold_left (
+      fun (acc,nb) email ->
+        if email <> "" then begin
+          let k = Printf.sprintf "%s.member.%d" dest_type nb in
+          let acc = (k,email)::acc in
+          acc, nb+1
+        end else (acc,nb)
+    ) (acc,1) dest
+  in l
+
+let retrieve_member ?(match_on="member") xml_path xml =
+  let t = nodes_of_string "xml_path" xml in
+  List.fold_left (
+    fun acc -> function
+      | El (m, [ Data s ]) when m = match_on -> s::acc
+      | _ -> acc
+  ) [] t
+
 (****************  SES METHODE ****************)
+
+(*** Delete methode ***)
+
+let delete_identity ~creds identity =
+  lwt _ = make_request ~creds [
+    ("Action", "DeleteIdentity");
+    ("Identity", identity);
+  ] in
+  Lwt.return ()
 
 let delete_verified_email_address ~creds email =
   lwt _ = make_request ~creds [
@@ -39,6 +70,8 @@ let delete_verified_email_address ~creds email =
     ("EmailAddress", email);
   ] in
   Lwt.return ()
+
+(*** Get methode ***)
 
 let get_send_quota ~creds =
   lwt xml = make_request ~creds [
@@ -76,32 +109,43 @@ let get_send_statistics ~creds =
   in
   Lwt.return l
 
+(*** List methode ***)
+
+let list_identites ~creds ?identity_type ?max_items ?next_token () =
+  let identity acc =
+    match identity_type with
+      | Some `Domain -> ("IdentityType","Domain")::acc
+      | Some `Email_address -> ("IdentityType","EmailAddress")::acc
+      | None -> acc
+  in
+  let max_items acc =
+    match max_items with
+      | Some i -> ("MaxItems", string_of_int i)::acc
+      | None -> acc
+  in
+  let next_token acc =
+    match next_token with
+      | Some n -> ("NextToken",n)::acc
+      | None -> acc
+  in
+
+  let act =
+    let act = identity [("Action","ListIdentities")] in
+    let act = max_items act in
+    next_token act
+  in
+
+  lwt xml = make_request ~creds act in
+  Lwt.return (retrieve_member "ListIdentitiesResponse.ListIdentitiesResult.Identities" xml)
+
 let list_verified_email_addresses ~creds =
   lwt xml = make_request ~creds [
     ("Action", "ListVerifiedEmailAddresses");
   ] in
 
-  let t = nodes_of_string "ListVerifiedEmailAddressesResponse.ListVerifiedEmailAddressesResult.VerifiedEmailAddresses" xml in
-  let l =
-    List.fold_left (
-      fun acc -> function
-        | El ("member", [ Data s ]) -> s::acc
-        | _ -> acc
-    ) [] t
-  in
-  Lwt.return l
+  Lwt.return (retrieve_member "ListVerifiedEmailAddressesResponse.ListVerifiedEmailAddressesResult.VerifiedEmailAddresses" xml)
 
-let build_member dest dest_type acc =
-  let l,_ =
-    List.fold_left (
-      fun (acc,nb) email ->
-        if email <> "" then begin
-          let k = Printf.sprintf "%s.member.%d" dest_type nb in
-          let acc = (k,email)::acc in
-          acc, nb+1
-        end else (acc,nb)
-    ) (acc,1) dest
-  in l
+(*** Send methode ***)
 
 let send_email ~creds ?reply_to_addresses ?return_path ~destination ~source ~message () =
 
@@ -164,21 +208,36 @@ let send_raw_email ~creds ?destinations ?source ~raw_message () =
   lwt xml = make_request ~creds params in
   Lwt.return (data_of_string "SendEmailResponse.SendEmailResult.MessageId" [xml])
 
+(*** Verify methode ***)
+
+let verifiy_domain_dkim ~creds domain =
+  lwt xml = make_request ~creds [
+    ("Action", "VerifyDomainDkim");
+    ("Domain", domain);
+  ] in
+  Lwt.return (retrieve_member "VerifyDomainDkimResponse.VerifyDomainDkimResult.DkimTokens" xml)
+
+let verify_domain_identity ~creds domain =
+  lwt xml = make_request ~creds [
+    ("Action", "VerifyDomainIdentity");
+    ("Domain", domain);
+  ] in
+  Lwt.return (data_of_string "VerifyDomainIdentityResponse.VerifyDomainIdentityResult.VerificationToken" [xml])
 
 (* The VerifyEmailAddress action is deprecated as of the May 15, 2012 release of Domain Verification. The VerifyEmailIdentity action is now preferred *)
 let verify_email_address ~creds email =
-  lwt xml = make_request ~creds [
+  lwt _ = make_request ~creds [
     ("Action", "VerifyEmailAddress");
     ("EmailAddress", email);
   ] in
-  Lwt.return (data_of_string "VerifyEmailAddressResponse.ResponseMetadata.RequestId" [xml])
+  Lwt.return ()
 
-let verify_email_address ~creds email =
-  lwt xml = make_request ~creds [
+let verify_email_identity ~creds email =
+  lwt _ = make_request ~creds [
     ("Action", "VerifyEmailIdentity");
     ("EmailAddress", email);
   ] in
-  Lwt.return (data_of_string "VerifyEmailIdentityResponse.ResponseMetadata.RequestId" [xml])
+  Lwt.return ()
 
 (************** custom function **************)
 
