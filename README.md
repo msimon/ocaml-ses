@@ -1,3 +1,7 @@
+/!\ WORK UNDER PROGRESS, THE LIBRARY IS NOT STABLE FOR THE MOMENT
+===============
+
+
 ocaml-ses
 ================
 OCaml library for Amazon Simple Email Service (SES) => http://aws.amazon.com/ses/
