@@ -31,3 +31,16 @@ type message = {
   subject: content;
   body: body;
 }
+
+type dkim_verification_status = Pending | Success | Failed | TemporaryFailure
+
+type dkim_attributes = {
+  dkim_enabled : bool ;
+  dkim_tokens : string list ;
+  dkim_verification_status : dkim_verification_status ;
+}
+
+type dkim = {
+  dkim_key : string ;
+  dkim_attributes : dkim_attributes ;
+}

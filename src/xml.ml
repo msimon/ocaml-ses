@@ -22,7 +22,7 @@ let rec fetch_nodes xml l =
 
 let nodes_of_string s xml =
   let l = Str.split (Str.regexp "\\.") s in
-  fetch_nodes [ xml ] l
+  fetch_nodes xml l
 
 let data_of_string s xml =
   let l = Str.split (Str.regexp "\\.")  s in
@@ -32,7 +32,7 @@ let data_of_string s xml =
 
 let check_error xml =
   try
-    let e = nodes_of_string "ErrorResponse.Error" xml in
+    let e = nodes_of_string "ErrorResponse.Error" [ xml ] in
     let type_ = data_of_string "Type" e in
     let code = data_of_string "Code" e in
     let message = data_of_string "Message" e in

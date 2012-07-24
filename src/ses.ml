@@ -46,7 +46,7 @@ let build_member dest dest_type acc =
   in l
 
 let retrieve_member ?(match_on="member") xml_path xml =
-  let t = nodes_of_string "xml_path" xml in
+  let t = nodes_of_string xml_path xml in
   List.fold_left (
     fun acc -> function
       | El (m, [ Data s ]) when m = match_on -> s::acc
@@ -73,12 +73,51 @@ let delete_verified_email_address ~creds email =
 
 (*** Get methode ***)
 
+let get_identity_dkim_attributes ~creds ~identities =
+
+  let dkim_verification_status_of_string = function
+    | "Pending" -> Pending
+    | "Success" -> Success
+    | "Failed" -> Failed
+    | "TemporaryFailure" -> TemporaryFailure
+    | s -> failwith (Printf.sprintf "Unknow dkim status %s" s)
+  in
+
+  let params =
+    build_member identities "Identities" [
+      ("Action", "GetIdentityDkimAttributes");
+    ]
+  in
+
+  lwt xml = make_request ~creds params in
+  let t = nodes_of_string "GetIdentityDkimAttributesResponse.GetIdentityDkimAttributesResult.DkimAttributes" [ xml ] in
+
+  let dkim_result =
+    List.fold_left (
+      fun acc -> function
+        | El ("entry", t_list) ->
+          let dkim_attributes = {
+            dkim_enabled = bool_of_string (data_of_string "value.DkimEnabled" t_list) ;
+            dkim_verification_status = dkim_verification_status_of_string (data_of_string "value.DkimVerificationStatus" t_list) ;
+            dkim_tokens = retrieve_member "value.DkimTokens" t_list ;
+          } in
+
+          {
+            dkim_key = data_of_string "key" t_list ;
+            dkim_attributes ;
+          }::acc
+        | _ -> acc
+    ) [] t
+  in
+
+  Lwt.return dkim_result
+
 let get_send_quota ~creds =
   lwt xml = make_request ~creds [
     ("Action", "GetSendQuota");
   ] in
 
-  let t = nodes_of_string "GetSendQuotaResponse.GetSendQuotaResult" xml in
+  let t = nodes_of_string "GetSendQuotaResponse.GetSendQuotaResult" [xml] in
   let max_24_hour_send = float_of_string (data_of_string "Max24HourSend" t) in
   let max_send_rate = float_of_string (data_of_string "MaxSendRate" t) in
   let sent_last_24_hours = float_of_string (data_of_string "SentLast24Hours" t) in
@@ -90,7 +129,7 @@ let get_send_statistics ~creds =
     ("Action", "GetSendStatistics");
   ] in
 
-  let t = nodes_of_string "GetSendStatisticsResponse.GetSendStatisticsResult.SendDataPoints" xml in
+  let t = nodes_of_string "GetSendStatisticsResponse.GetSendStatisticsResult.SendDataPoints" [xml] in
   let l =
     List.fold_left (
       fun datas -> function
@@ -136,14 +175,14 @@ let list_identites ~creds ?identity_type ?max_items ?next_token () =
   in
 
   lwt xml = make_request ~creds act in
-  Lwt.return (retrieve_member "ListIdentitiesResponse.ListIdentitiesResult.Identities" xml)
+  Lwt.return (retrieve_member "ListIdentitiesResponse.ListIdentitiesResult.Identities" [xml])
 
 let list_verified_email_addresses ~creds =
   lwt xml = make_request ~creds [
     ("Action", "ListVerifiedEmailAddresses");
   ] in
 
-  Lwt.return (retrieve_member "ListVerifiedEmailAddressesResponse.ListVerifiedEmailAddressesResult.VerifiedEmailAddresses" xml)
+  Lwt.return (retrieve_member "ListVerifiedEmailAddressesResponse.ListVerifiedEmailAddressesResult.VerifiedEmailAddresses" [xml])
 
 (*** Send methode ***)
 
@@ -215,7 +254,7 @@ let verifiy_domain_dkim ~creds domain =
     ("Action", "VerifyDomainDkim");
     ("Domain", domain);
   ] in
-  Lwt.return (retrieve_member "VerifyDomainDkimResponse.VerifyDomainDkimResult.DkimTokens" xml)
+  Lwt.return (retrieve_member "VerifyDomainDkimResponse.VerifyDomainDkimResult.DkimTokens" [xml])
 
 let verify_domain_identity ~creds domain =
   lwt xml = make_request ~creds [
