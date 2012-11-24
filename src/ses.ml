@@ -45,13 +45,34 @@ let build_member dest dest_type acc =
     ) (acc,1) dest
   in l
 
-let retrieve_member ?(match_on="member") xml_path xml =
+let retrieve_data ?(match_on="member") xml_path xml =
   let t = nodes_of_string xml_path xml in
   List.fold_left (
     fun acc -> function
       | El (m, [ Data s ]) when m = match_on -> s::acc
       | _ -> acc
   ) [] t
+
+let retrieve_entries ?(match_on="entry") f xml_path xml =
+  let t = nodes_of_string xml_path xml in
+  List.fold_left (
+    fun acc -> function
+      | El (m, t_list) when m = match_on ->
+        {
+          key = data_of_string "key" t_list ;
+          value = f (nodes_of_string "value" t_list) ;
+        }::acc
+      | _ -> acc
+  ) [] t
+
+let verification_status_of_string = function
+  | "Pending" -> Pending
+  | "Success" -> Success
+  | "Failed" -> Failed
+  | "TemporaryFailure" -> TemporaryFailure
+  | "NotStarted" -> NotStarted
+  | s -> failwith (Printf.sprintf "Unknow dkim status %s" s)
+
 
 (****************  SES METHODE ****************)
 
@@ -74,15 +95,6 @@ let delete_verified_email_address ~creds email =
 (*** Get methode ***)
 
 let get_identity_dkim_attributes ~creds ~identities =
-
-  let dkim_verification_status_of_string = function
-    | "Pending" -> Pending
-    | "Success" -> Success
-    | "Failed" -> Failed
-    | "TemporaryFailure" -> TemporaryFailure
-    | s -> failwith (Printf.sprintf "Unknow dkim status %s" s)
-  in
-
   let params =
     build_member identities "Identities" [
       ("Action", "GetIdentityDkimAttributes");
@@ -90,27 +102,60 @@ let get_identity_dkim_attributes ~creds ~identities =
   in
 
   lwt xml = make_request ~creds params in
-  let t = nodes_of_string "GetIdentityDkimAttributesResponse.GetIdentityDkimAttributesResult.DkimAttributes" [ xml ] in
 
   let dkim_result =
-    List.fold_left (
-      fun acc -> function
-        | El ("entry", t_list) ->
-          let dkim_attributes = {
-            dkim_enabled = bool_of_string (data_of_string "value.DkimEnabled" t_list) ;
-            dkim_verification_status = dkim_verification_status_of_string (data_of_string "value.DkimVerificationStatus" t_list) ;
-            dkim_tokens = retrieve_member "value.DkimTokens" t_list ;
-          } in
-
-          {
-            dkim_key = data_of_string "key" t_list ;
-            dkim_attributes ;
-          }::acc
-        | _ -> acc
-    ) [] t
+    retrieve_entries (fun value ->
+      Dkim {
+        dkim_enabled = bool_of_string (data_of_string "DkimEnabled" value) ;
+        dkim_verification_status = verification_status_of_string (data_of_string "DkimVerificationStatus" value) ;
+        dkim_tokens = retrieve_data "DkimTokens" value ;
+      }
+    ) "GetIdentityDkimAttributesResponse.GetIdentityDkimAttributesResult.DkimAttributes" [ xml ]
   in
 
   Lwt.return dkim_result
+
+let get_identity_notification_attributes ~creds ~identities =
+  let params =
+    build_member identities "Identities" [
+      ("Action", "GetIdentityNotificationAttributes");
+    ]
+  in
+
+  lwt xml = make_request ~creds params in
+
+  let notif_result =
+    retrieve_entries (fun value ->
+      Notification {
+        forwarding_enable = bool_of_string (data_of_string "ForwardingEnabled" value) ;
+        bounce_topic = data_of_string "BounceTopic" value ;
+        complaint_topic = data_of_string "ComplaintTopic" value ;
+      }
+    ) "GetIdentityNotificationAttributesResponse.GetIdentityNotificationAttributesResult.NotificationAttributes" [ xml ]
+  in
+
+  Lwt.return notif_result
+
+let get_identity_verification_attributes ~creds ~identities =
+  let params =
+    build_member identities "Identities" [
+      ("Action", "GetIdentityVerificationAttributes");
+    ]
+  in
+
+  lwt xml = make_request ~creds params in
+
+  let verif_result =
+    retrieve_entries (fun value ->
+      Verification {
+        verification_status = verification_status_of_string (data_of_string "ForwardingEnabled" value) ;
+        verification_token = data_of_string "VerificationToken" value ;
+      }
+    ) "GetIdentityVerificationAttributesResponse.GetIdentityVerificationAttributesResult.VerificationAttributes" [ xml ]
+  in
+
+  Lwt.return verif_result
+
 
 let get_send_quota ~creds =
   lwt xml = make_request ~creds [
@@ -175,14 +220,14 @@ let list_identites ~creds ?identity_type ?max_items ?next_token () =
   in
 
   lwt xml = make_request ~creds act in
-  Lwt.return (retrieve_member "ListIdentitiesResponse.ListIdentitiesResult.Identities" [xml])
+  Lwt.return (retrieve_data "ListIdentitiesResponse.ListIdentitiesResult.Identities" [xml])
 
 let list_verified_email_addresses ~creds =
   lwt xml = make_request ~creds [
     ("Action", "ListVerifiedEmailAddresses");
   ] in
 
-  Lwt.return (retrieve_member "ListVerifiedEmailAddressesResponse.ListVerifiedEmailAddressesResult.VerifiedEmailAddresses" [xml])
+  Lwt.return (retrieve_data "ListVerifiedEmailAddressesResponse.ListVerifiedEmailAddressesResult.VerifiedEmailAddresses" [xml])
 
 (*** Send methode ***)
 
@@ -247,6 +292,11 @@ let send_raw_email ~creds ?destinations ?source ~raw_message () =
   lwt xml = make_request ~creds params in
   Lwt.return (data_of_string "SendEmailResponse.SendEmailResult.MessageId" [xml])
 
+(*** Set methode ***)
+(* let set_identity_dkim_enabled = *)
+(* let set_identity_feedback_forwarding_enable = *)
+(* let set_identity_notification_topic = *)
+
 (*** Verify methode ***)
 
 let verifiy_domain_dkim ~creds domain =
@@ -254,7 +304,7 @@ let verifiy_domain_dkim ~creds domain =
     ("Action", "VerifyDomainDkim");
     ("Domain", domain);
   ] in
-  Lwt.return (retrieve_member "VerifyDomainDkimResponse.VerifyDomainDkimResult.DkimTokens" [xml])
+  Lwt.return (retrieve_data "VerifyDomainDkimResponse.VerifyDomainDkimResult.DkimTokens" [xml])
 
 let verify_domain_identity ~creds domain =
   lwt xml = make_request ~creds [
@@ -278,6 +328,7 @@ let verify_email_identity ~creds email =
   ] in
   Lwt.return ()
 
+
 (************** custom function **************)
 
 let send_basic_email ~creds ?message_text ?bcc ?cc ?charset ?reply_to_addresses ?return_path ~from_ ~to_ ~subject ~message_html () =
@@ -291,7 +342,7 @@ let send_basic_email ~creds ?message_text ?bcc ?cc ?charset ?reply_to_addresses 
 
   let message = {
     subject = { charset; data = subject } ;
-    body = { 
+    body = {
       html = { charset; data = message_html } ;
       text = { charset; data = (match message_text with | Some m -> m | None -> "") }
     }

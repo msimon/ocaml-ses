@@ -10,7 +10,7 @@ let generate_headers headers =
   ) (Http_headers.empty) headers
 
 let fragment_url url =
-  let (https, host, port, uri, _, _, _) = Ocsigen_pervasives.Url.parse url in
+  let (https, host, port, uri, _, _, _) = Ocsigen_lib.Url.parse url in
   let host = match host with None -> "localhost" | Some h -> h in
   (https, host, port, "/" ^ uri)
 
