@@ -293,8 +293,49 @@ let send_raw_email ~creds ?destinations ?source ~raw_message () =
   Lwt.return (data_of_string "SendEmailResponse.SendEmailResult.MessageId" [xml])
 
 (*** Set methode ***)
-(* let set_identity_dkim_enabled = *)
-(* let set_identity_feedback_forwarding_enable = *)
+
+let set_identity_dkim_enabled ~creds ~dkim_enabled ~identity =
+  lwt xml = make_request ~creds [
+    ("Action", "SetIdentityDkimEnabled");
+    ("DkimEnabled", string_of_bool dkim_enabled);
+    ("Identity", identity)
+  ] in
+
+  Lwt.return ()
+
+let set_identity_feedback_forwarding_enable ~creds ~forwarding_enabled ~identity =
+  lwt xml = make_request ~creds [
+    ("Action", "SetIdentityFeedbackForwardingEnabled");
+    ("ForwardingEnabled", string_of_bool forwarding_enabled);
+    ("Identity", identity)
+  ] in
+
+  Lwt.return ()
+
+let set_identity_notification_topic ~creds ?sns_topic ~notification_type ~identity =
+  let string_of_notification_type =
+    function
+      | Bounce -> "Bounce"
+      | Complaint -> "Complaint"
+  in
+  let params =
+    [
+      ("Action", "SetIdentityNotificationTopic");
+      ("Identity", identity);
+      ("NotificationType", string_of_notification_type notification_type)
+    ]
+  in
+
+  let params =
+    match sns_topic with
+      | Some s -> ("SnsTopic", s)::params
+      | None -> params
+  in
+
+  lwt xml = make_request ~creds params in
+
+  Lwt.return ()
+
 (* let set_identity_notification_topic = *)
 
 (*** Verify methode ***)

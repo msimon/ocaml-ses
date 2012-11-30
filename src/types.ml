@@ -32,13 +32,22 @@ type message = {
   body: body;
 }
 
-type verification_status = Pending | Success | Failed | TemporaryFailure | NotStarted
+type verification_status =
+  | Pending
+  | Success
+  | Failed
+  | TemporaryFailure
+  | NotStarted
 
 type dkim_attributes = {
   dkim_enabled : bool ;
   dkim_tokens : string list ;
   dkim_verification_status : verification_status ;
 }
+
+type notification_type =
+  | Bounce
+  | Complaint
 
 type notification_attributes = {
   forwarding_enable: bool ;
