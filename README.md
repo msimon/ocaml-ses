@@ -1,4 +1,3 @@
-
 ocaml-ses
 ================
 OCaml library for Amazon Simple Email Service (SES) => http://aws.amazon.com/ses/
@@ -18,7 +17,7 @@ Dependencies
 
 Usage
 -----------------
-All action and data type are implemented in as describe in ses api.
+All action and data type are implemented as describe in ses api.
 
 Check http://docs.amazonwebservices.com/ses/latest/APIReference/Welcome.html?r=5201 for more information.
 
